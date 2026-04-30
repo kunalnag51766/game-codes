@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EMP Survival Game</title>
+
+<style>
+* { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+body {
+margin: 0;
+height: 100vh;
+display: flex;
+justify-content: center;
+align-items: center;
+color: #2d2d2d;
+overflow: hidden;
+}
+
+body::before {
+content: "";
+position: absolute;
+width: 200%;
+height: 200%;
+background: linear-gradient(120deg,#e3f2fd,#fce4ec,#e8f5e9);
+animation: bgMove 18s ease infinite;
+z-index: -1;
+}
+
+@keyframes bgMove {
+0% { transform: translate(0,0); }
+50% { transform: translate(-10%,-10%); }
+100% { transform: translate(0,0); }
+}
+
+.game {
+width: 95%;
+max-width: 650px;
+padding: 20px;
+border-radius: 18px;
+background: rgba(255,255,255,0.75);
+backdrop-filter: blur(12px);
+box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+position: relative;
+z-index: 2;
+}
+
+.topbar {
+display: flex;
+justify-content: space-between;
+font-size: 14px;
+}
+
+h2 { text-align: center; margin: 15px 0; }
+
+.choices button {
+width: 100%;
+padding: 12px;
+margin: 6px 0;
+border: none;
+border-radius: 12px;
+background: #eceff1;
+cursor: pointer;
+transition: 0.2s;
+}
+.choices button:hover { background: #cfd8dc; }
+
+.controls {
+display: flex;
+gap: 8px;
+margin-top: 12px;
+}
+.controls button {
+flex: 1;
+padding: 10px;
+border-radius: 10px;
+border: none;
+background: #dde3e6;
+cursor: pointer;
+}
+
+.celebration {
+position: fixed;
+inset: 0;
+display: none;
+justify-content: center;
+align-items: center;
+flex-direction: column;
+text-align: center;
+background: radial-gradient(circle, #ffffff, #e8f5e9);
+z-index: 5;
+overflow: hidden;
+}
+
+.playAgain {
+margin-top: 20px;
+padding: 12px 20px;
+border: none;
+border-radius: 12px;
+background: #66bb6a;
+color: white;
+font-size: 16px;
+cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game" id="gameUI">
+
+<div class="topbar">
+<div>❤️ <span id="hp">100</span></div>
+<div>⏸ <span id="pause">3</span></div>
+<div>⏱ <span id="time">10</span>s</div>
+</div>
+
+<h2 id="scene"></h2>
+<div id="choices" class="choices"></div>
+
+<div class="controls">
+<button onclick="pauseGame()">⏸</button>
+<button onclick="restartGame()">🔄</button>
+<button onclick="exitGame()">❌</button>
+<button onclick="goBack()">⬅</button>
+</div>
+
+</div>
+
+<div class="celebration" id="celebration">
+<h1>🏆 You Survived!</h1>
+<p>You made smart, realistic decisions 🎉</p>
+<button class="playAgain" onclick="restartGame()">🔄 Play Again</button>
+</div>
+
+<script>
+let hp=100, pauseLeft=3, history=[], current="start", paused=false, time=10, timer;
+
+const scenes = {
+
+// START
+start:{text:"⚡ Massive EMP hits. Power & electronics dead.",options:[
+{t:"🔒 Stay home",n:"secure_home"},
+{t:"🏃 Go outside",n:"street"},
+{t:"📻 Check radio",n:"radio_check"}
+]},
+
+// HOME
+secure_home:{text:"🏠 Home is safe temporarily.",effect:+5,options:[
+{t:"📦 Gather essentials",n:"gather"},
+{t:"🚰 Fill water",n:"water_store"},
+{t:"😴 Sleep",n:"death"}
+]},
+
+water_store:{text:"🚰 You store clean water.",effect:+10,options:[
+{t:"📦 Continue prep",n:"gather"},
+{t:"🏃 Leave",n:"street"},
+{t:"⏳ Wait too long",n:"death"}
+]},
+
+gather:{text:"🎒 You pack food, knife, flashlight.",effect:+10,options:[
+{t:"🧭 Plan route",n:"plan"},
+{t:"🏃 Leave fast",n:"street"},
+{t:"🔒 Stay",n:"starve"}
+]},
+
+radio_check:{text:"📻 Old radio works. Govt safe zone announced.",options:[
+{t:"🗺 Follow info",n:"plan"},
+{t:"❌ Ignore",n:"street"},
+{t:"😴 Sleep",n:"death"}
+]},
+
+// PLANNING
+plan:{text:"🧭 You plan carefully.",effect:+5,options:[
+{t:"🚶 Move quietly",n:"stealth"},
+{t:"🚲 Use bicycle",n:"bike"},
+{t:"🏃 Rush",n:"street"}
+]},
+
+// OUTSIDE
+street:{text:"🚧 Panic everywhere. Traffic dead.",options:[
+{t:"🏃 Run blindly",n:"chase"},
+{t:"🏠 Enter building",n:"hide"},
+{t:"👀 Observe",n:"stealth"}
+]},
+
+stealth:{text:"👀 You stay unnoticed.",effect:+5,options:[
+{t:"🚶 Move forward",n:"store"},
+{t:"🏠 Hide",n:"hide"},
+{t:"🔙 Go back",n:"secure_home"}
+]},
+
+hide:{text:"🏠 Temporary shelter.",effect:+5,options:[
+{t:"🔍 Search",n:"store"},
+{t:"😴 Stay too long",n:"death"},
+{t:"🚶 Move out",n:"street"}
+]},
+
+// RESOURCES
+store:{text:"🏪 Looted shop remains.",options:[
+{t:"🥫 Take food",n:"food"},
+{t:"💊 Take medicine",n:"med"},
+{t:"⚠ Stay long",n:"death"}
+]},
+
+food:{text:"🥫 Food secured.",effect:+10,options:[
+{t:"🚶 Continue",n:"road"},
+{t:"📦 Take more",n:"death"},
+{t:"🔙 Leave",n:"street"}
+]},
+
+med:{text:"💊 Medical kit found.",effect:+15,options:[
+{t:"🚶 Continue",n:"road"},
+{t:"📦 Search more",n:"death"},
+{t:"🔙 Leave",n:"street"}
+]},
+
+// BIKE SYSTEM
+bike:{text:"🚲 Bicycle works (no electronics).",options:[
+{t:"🚲 Ride carefully",n:"ride"},
+{t:"⚡ Speed risky",n:"death"},
+{t:"❌ Leave it",n:"road"}
+]},
+
+ride:{text:"🚲 You move efficiently.",effect:+10,options:[
+{t:"➡ Continue",n:"safe_zone"},
+{t:"🔙 Stop",n:"road"},
+{t:"⚠ Crash risk",n:"death"}
+]},
+
+// MOVEMENT
+road:{text:"🛣 Long walk ahead.",options:[
+{t:"🚶 Walk steady",n:"fatigue"},
+{t:"🏃 Sprint",n:"chase"},
+{t:"🔍 Search path",n:"safe_path"}
+]},
+
+safe_path:{text:"🧭 Found safer route.",effect:+5,options:[
+{t:"➡ Continue",n:"safe_zone"},
+{t:"🔙 Return",n:"road"},
+{t:"⚠ Delay",n:"death"}
+]},
+
+fatigue:{text:"🥵 You are exhausted.",effect:-10,options:[
+{t:"😌 Short rest",n:"rest"},
+{t:"🚶 Push forward",n:"safe_zone"},
+{t:"❌ Stop",n:"death"}
+]},
+
+rest:{text:"😌 Rest helps recovery.",effect:+5,options:[
+{t:"🚶 Continue",n:"safe_zone"},
+{t:"😴 Sleep",n:"death"},
+{t:"🔙 Back",n:"road"}
+]},
+
+// DANGER
+chase:{text:"⚠ Looters chasing!",effect:-15,options:[
+{t:"🏃 Escape smart",n:"safe_zone"},
+{t:"⚔ Fight",n:"fight"},
+{t:"😵 Panic",n:"death"}
+]},
+
+fight:{text:"⚔ Risky fight.",effect:-20,options:[
+{t:"💪 Win",n:"safe_zone"},
+{t:"🏃 Run",n:"chase"},
+{t:"😵 Lose",n:"death"}
+]},
+
+// END
+safe_zone:{text:"🏕 Military relief camp ahead.",options:[
+{t:"➡ Enter safely",n:"win"},
+{t:"❌ Ignore",n:"death"},
+{t:"🔙 Go back",n:"road"}
+]},
+
+// FAIL
+starve:{text:"🥶 No supplies. You starved.",options:[]},
+death:{text:"💀 You died.",options:[]},
+win:{text:"🏆 You survived smartly!",options:[]}
+
+};
+
+function render(){
+if(paused)return;
+clearInterval(timer);
+
+if(current==="win"){
+showCelebration();
+return;
+}
+
+time=10;
+startTimer();
+
+let s=scenes[current];
+document.getElementById("scene").innerText=s.text;
+document.getElementById("hp").innerText=hp;
+document.getElementById("pause").innerText=pauseLeft;
+
+if(s.effect){
+hp+=s.effect;
+if(hp<=0){current="death";render();return;}
+}
+
+let c=document.getElementById("choices");
+c.innerHTML="";
+s.options.forEach(o=>{
+let b=document.createElement("button");
+b.innerText=o.t;
+b.onclick=()=>{history.push(current);current=o.n;render();};
+c.appendChild(b);
+});
+}
+
+function showCelebration(){
+document.getElementById("celebration").style.display="flex";
+}
+
+function startTimer(){
+timer=setInterval(()=>{
+time--;
+document.getElementById("time").innerText=time;
+if(time<=0){clearInterval(timer);alert("⏱ Time up!");restartGame();}
+},1000);
+}
+
+function pauseGame(){
+if(pauseLeft>0){
+paused=!paused;
+pauseLeft--;
+if(paused)clearInterval(timer);
+else startTimer();
+render();
+}else alert("No pause left");
+}
+
+function restartGame(){
+document.getElementById("celebration").style.display="none";
+hp=100;pauseLeft=3;history=[];current="start";paused=false;
+render();
+}
+
+function exitGame(){
+document.body.innerHTML="<h1 style='text-align:center'>Game Exited ❌</h1>";
+}
+
+function goBack(){
+if(history.length>0){
+current=history.pop();
+document.getElementById("celebration").style.display="none";
+render();
+}
+}
+
+render();
+</script>
+
+</body>
+</html>
