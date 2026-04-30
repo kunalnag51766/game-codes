@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desert Survival Game</title>
+
+<style>
+* { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+body {
+margin: 0;
+height: 100vh;
+display: flex;
+justify-content: center;
+align-items: center;
+color: #2d2d2d;
+overflow: hidden;
+}
+
+body::before {
+content: "";
+position: absolute;
+width: 200%;
+height: 200%;
+background: linear-gradient(120deg,#ffe0b2,#fff3e0,#ffcc80);
+animation: bgMove 18s ease infinite;
+z-index: -1;
+}
+
+@keyframes bgMove {
+0% { transform: translate(0,0); }
+50% { transform: translate(-10%,-10%); }
+100% { transform: translate(0,0); }
+}
+
+.game {
+width: 95%;
+max-width: 650px;
+padding: 20px;
+border-radius: 18px;
+background: rgba(255,255,255,0.75);
+backdrop-filter: blur(12px);
+box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+position: relative;
+z-index: 2;
+}
+
+.topbar {
+display: flex;
+justify-content: space-between;
+font-size: 14px;
+}
+
+h2 { text-align: center; margin: 15px 0; }
+
+.choices button {
+width: 100%;
+padding: 12px;
+margin: 6px 0;
+border: none;
+border-radius: 12px;
+background: #eceff1;
+cursor: pointer;
+transition: 0.2s;
+}
+.choices button:hover { background: #cfd8dc; }
+
+.controls {
+display: flex;
+gap: 8px;
+margin-top: 12px;
+}
+.controls button {
+flex: 1;
+padding: 10px;
+border-radius: 10px;
+border: none;
+background: #dde3e6;
+cursor: pointer;
+}
+
+.celebration {
+position: fixed;
+inset: 0;
+display: none;
+justify-content: center;
+align-items: center;
+flex-direction: column;
+text-align: center;
+background: radial-gradient(circle, #ffffff, #fff3e0);
+z-index: 5;
+}
+
+.playAgain {
+margin-top: 20px;
+padding: 12px 20px;
+border: none;
+border-radius: 12px;
+background: #66bb6a;
+color: white;
+font-size: 16px;
+cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game" id="gameUI">
+<div class="topbar">
+<div>❤️ <span id="hp">100</span></div>
+<div>⏸ <span id="pause">3</span></div>
+<div>⏱ <span id="time">10</span>s</div>
+</div>
+
+<h2 id="scene"></h2>
+<div id="choices" class="choices"></div>
+
+<div class="controls">
+<button onclick="pauseGame()">⏸</button>
+<button onclick="restartGame()">🔄</button>
+<button onclick="exitGame()">❌</button>
+<button onclick="goBack()">⬅</button>
+</div>
+</div>
+
+<div class="celebration" id="celebration">
+<h1>🏆 You Survived!</h1>
+<p>You made smart desert survival decisions 🌵</p>
+<button class="playAgain" onclick="restartGame()">🔄 Play Again</button>
+</div>
+
+<script>
+let hp=100, pauseLeft=3, history=[], current="start", paused=false, time=10, timer;
+
+const scenes = {
+
+// START
+start:{text:"🔥 Heatwave emergency. You are stranded in desert.",options:[
+{t:"🏠 Stay near shelter",n:"shelter"},
+{t:"🏃 Walk immediately",n:"heat_walk"},
+{t:"📡 Try signal",n:"no_signal"}
+]},
+
+// SHELTER STRATEGY
+shelter:{text:"🏠 Limited shade found.",effect:+5,options:[
+{t:"💧 Ration water",n:"ration"},
+{t:"🧭 Plan route",n:"plan"},
+{t:"😴 Sleep long",n:"death"}
+]},
+
+ration:{text:"💧 You conserve water.",effect:+10,options:[
+{t:"🌅 Move at night",n:"night_move"},
+{t:"🏠 Stay longer",n:"dehydration"},
+{t:"🧭 Plan route",n:"plan"}
+]},
+
+plan:{text:"🧭 Planning direction.",effect:+5,options:[
+{t:"🌄 Follow sun direction",n:"wrong_dir"},
+{t:"🧭 Use landmarks",n:"smart_move"},
+{t:"🏃 Rush",n:"heat_walk"}
+]},
+
+// MOVEMENT
+heat_walk:{text:"🔥 Walking in heat.",effect:-15,options:[
+{t:"🌳 Find shade",n:"shade"},
+{t:"🏃 Keep moving",n:"collapse"},
+{t:"💧 Drink more water",n:"waste_water"}
+]},
+
+shade:{text:"🌳 You found shade.",effect:+5,options:[
+{t:"😌 Rest briefly",n:"rest"},
+{t:"🚶 Continue slowly",n:"smart_move"},
+{t:"😴 Sleep long",n:"death"}
+]},
+
+rest:{text:"😌 Short rest.",effect:+5,options:[
+{t:"🌙 Move at night",n:"night_move"},
+{t:"🚶 Continue day",n:"heat_walk"},
+{t:"🔙 Stay",n:"dehydration"}
+]},
+
+night_move:{text:"🌙 Cooler night travel.",effect:+10,options:[
+{t:"🚶 Continue",n:"smart_move"},
+{t:"😴 Sleep outside",n:"cold_death"},
+{t:"🔙 Go back",n:"shelter"}
+]},
+
+smart_move:{text:"🧭 Careful movement.",effect:+5,options:[
+{t:"🏜 Reach dune",n:"dune"},
+{t:"🚶 Continue",n:"road"},
+{t:"🔙 Retreat",n:"shelter"}
+]},
+
+// EVENTS
+dune:{text:"🏜 High dune climb.",effect:-5,options:[
+{t:"👀 Scan area",n:"see_oasis"},
+{t:"🏃 Rush down",n:"fall"},
+{t:"😴 Rest top",n:"death"}
+]},
+
+see_oasis:{text:"🌴 You spot possible oasis.",options:[
+{t:"🚶 Move carefully",n:"oasis"},
+{t:"🏃 Run fast",n:"collapse"},
+{t:"❌ Ignore",n:"road"}
+]},
+
+oasis:{text:"🌴 Water found!",effect:+20,options:[
+{t:"💧 Drink safely",n:"hydrated"},
+{t:"💧 Overdrink",n:"sick"},
+{t:"🚶 Continue",n:"safe_zone"}
+]},
+
+hydrated:{text:"💧 Hydrated well.",effect:+10,options:[
+{t:"🚶 Continue",n:"safe_zone"},
+{t:"😴 Rest",n:"rest"},
+{t:"🔙 Stay",n:"dehydration"}
+]},
+
+// ROAD
+road:{text:"🛣 Desert road found.",options:[
+{t:"🚗 Look for vehicle",n:"car_check"},
+{t:"🚶 Walk",n:"fatigue"},
+{t:"🏃 Sprint",n:"collapse"}
+]},
+
+fatigue:{text:"🥵 Exhaustion.",effect:-10,options:[
+{t:"😌 Rest",n:"rest"},
+{t:"🚶 Continue",n:"safe_zone"},
+{t:"❌ Stop",n:"death"}
+]},
+
+// CAR
+car_check:{text:"🚗 Abandoned car.",options:[
+{t:"🔑 Try start",n:"car_start"},
+{t:"⛽ Check fuel",n:"fuel"},
+{t:"❌ Ignore",n:"road"}
+]},
+
+fuel:{text:"⛽ Low fuel.",options:[
+{t:"🔍 Search fuel",n:"fuel_find"},
+{t:"🚗 Risk drive",n:"car_fail"},
+{t:"🚶 Walk",n:"road"}
+]},
+
+fuel_find:{text:"⛽ Found small fuel.",effect:+5,options:[
+{t:"🚗 Drive",n:"drive"},
+{t:"📦 Search more",n:"death"},
+{t:"🔙 Back",n:"car_check"}
+]},
+
+car_start:{text:"🚗 Engine starts.",options:[
+{t:"🚗 Drive",n:"drive"},
+{t:"⚠ Rev loud",n:"death"},
+{t:"🔙 Exit",n:"road"}
+]},
+
+car_fail:{text:"🚗 Car broke.",options:[
+{t:"🏃 Walk",n:"heat_walk"},
+{t:"😴 Stay",n:"death"},
+{t:"🚶 Continue",n:"road"}
+]},
+
+drive:{text:"🚗 Driving safely.",effect:+10,options:[
+{t:"🛑 Stop carefully",n:"safe_zone"},
+{t:"⚡ Speed reckless",n:"death"},
+{t:"🔙 Exit",n:"road"}
+]},
+
+// FINAL
+safe_zone:{text:"🏙 Rescue camp found.",options:[
+{t:"➡ Enter safely",n:"win"},
+{t:"❌ Ignore",n:"death"},
+{t:"🔙 Return",n:"road"}
+]},
+
+// FAIL
+wrong_dir:{text:"❌ Wrong direction.",options:[]},
+collapse:{text:"💀 Heatstroke collapse.",options:[]},
+waste_water:{text:"💀 Dehydration from misuse.",options:[]},
+dehydration:{text:"💀 Severe dehydration.",options:[]},
+cold_death:{text:"💀 Night cold shock.",options:[]},
+fall:{text:"💀 Fell from dune.",options:[]},
+sick:{text:"💀 Water sickness.",options:[]},
+death:{text:"💀 You died.",options:[]},
+no_signal:{text:"📵 No signal.",options:[
+{t:"🏃 Move",n:"heat_walk"},
+{t:"🏠 Stay",n:"shelter"},
+{t:"😵 Panic",n:"death"}
+]},
+win:{text:"🏆 You survived smartly!",options:[]}
+
+};
+
+// (JS SAME AS YOUR ORIGINAL — unchanged)
+
+function render(){
+if(paused)return;
+clearInterval(timer);
+
+if(current==="win"){
+showCelebration();
+return;
+}
+
+time=10;
+startTimer();
+
+let s=scenes[current];
+document.getElementById("scene").innerText=s.text;
+document.getElementById("hp").innerText=hp;
+document.getElementById("pause").innerText=pauseLeft;
+
+if(s.effect){
+hp+=s.effect;
+if(hp<=0){current="death";render();return;}
+}
+
+let c=document.getElementById("choices");
+c.innerHTML="";
+s.options.forEach(o=>{
+let b=document.createElement("button");
+b.innerText=o.t;
+b.onclick=()=>{history.push(current);current=o.n;render();};
+c.appendChild(b);
+});
+}
+
+function showCelebration(){
+document.getElementById("celebration").style.display="flex";
+}
+
+function startTimer(){
+timer=setInterval(()=>{
+time--;
+document.getElementById("time").innerText=time;
+if(time<=0){clearInterval(timer);alert("⏱ Time up!");restartGame();}
+},1000);
+}
+
+function pauseGame(){
+if(pauseLeft>0){
+paused=!paused;
+pauseLeft--;
+if(paused)clearInterval(timer);
+else startTimer();
+render();
+}else alert("No pause left");
+}
+
+function restartGame(){
+document.getElementById("celebration").style.display="none";
+hp=100;pauseLeft=3;history=[];current="start";paused=false;
+render();
+}
+
+function exitGame(){
+document.body.innerHTML="<h1 style='text-align:center'>Game Exited ❌</h1>";
+}
+
+function goBack(){
+if(history.length>0){
+current=history.pop();
+document.getElementById("celebration").style.display="none";
+render();
+}
+}
+
+render();
+</script>
+
+</body>
+</html>
