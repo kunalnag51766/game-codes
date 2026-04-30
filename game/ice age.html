@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ice Age Survival Game</title>
+
+<style>
+* { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+body {
+margin: 0;
+height: 100vh;
+display: flex;
+justify-content: center;
+align-items: center;
+color: #2d2d2d;
+overflow: hidden;
+}
+
+body::before {
+content: "";
+position: absolute;
+width: 200%;
+height: 200%;
+background: linear-gradient(120deg,#e3f2fd,#e1f5fe,#f1f8e9);
+animation: bgMove 18s ease infinite;
+z-index: -1;
+}
+
+@keyframes bgMove {
+0% { transform: translate(0,0); }
+50% { transform: translate(-10%,-10%); }
+100% { transform: translate(0,0); }
+}
+
+.game {
+width: 95%;
+max-width: 650px;
+padding: 20px;
+border-radius: 18px;
+background: rgba(255,255,255,0.75);
+backdrop-filter: blur(12px);
+box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+position: relative;
+z-index: 2;
+}
+
+.topbar {
+display: flex;
+justify-content: space-between;
+font-size: 14px;
+}
+
+h2 { text-align: center; margin: 15px 0; }
+
+.choices button {
+width: 100%;
+padding: 12px;
+margin: 6px 0;
+border: none;
+border-radius: 12px;
+background: #eceff1;
+cursor: pointer;
+transition: 0.2s;
+}
+.choices button:hover { background: #cfd8dc; }
+
+.controls {
+display: flex;
+gap: 8px;
+margin-top: 12px;
+}
+.controls button {
+flex: 1;
+padding: 10px;
+border-radius: 10px;
+border: none;
+background: #dde3e6;
+cursor: pointer;
+}
+
+.celebration {
+position: fixed;
+inset: 0;
+display: none;
+justify-content: center;
+align-items: center;
+flex-direction: column;
+text-align: center;
+background: radial-gradient(circle, #ffffff, #e8f5e9);
+z-index: 5;
+overflow: hidden;
+}
+
+.playAgain {
+margin-top: 20px;
+padding: 12px 20px;
+border: none;
+border-radius: 12px;
+background: #66bb6a;
+color: white;
+font-size: 16px;
+cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game" id="gameUI">
+
+<div class="topbar">
+<div>❤️ <span id="hp">100</span></div>
+<div>⏸ <span id="pause">3</span></div>
+<div>⏱ <span id="time">10</span>s</div>
+</div>
+
+<h2 id="scene"></h2>
+<div id="choices" class="choices"></div>
+
+<div class="controls">
+<button onclick="pauseGame()">⏸</button>
+<button onclick="restartGame()">🔄</button>
+<button onclick="exitGame()">❌</button>
+<button onclick="goBack()">⬅</button>
+</div>
+
+</div>
+
+<div class="celebration" id="celebration">
+<h1>🏆 You Survived!</h1>
+<p>You made smart survival decisions ❄️</p>
+<button class="playAgain" onclick="restartGame()">🔄 Play Again</button>
+</div>
+
+<script>
+let hp=100, pauseLeft=3, history=[], current="start", paused=false, time=10, timer;
+
+const scenes = {
+
+// START
+start:{text:"🌨 Sudden Ice Age begins. Temperature dropping fast.",options:[
+{t:"🏠 Stay inside and seal house",n:"secure_home"},
+{t:"🏃 Run outside immediately",n:"blizzard"},
+{t:"📡 Try contacting help",n:"no_signal"}
+]},
+
+// HOME
+secure_home:{text:"🏠 House insulated.",effect:+5,options:[
+{t:"🔥 Start fire",n:"fire"},
+{t:"📦 Gather supplies",n:"gather"},
+{t:"😴 Sleep",n:"freeze_death"}
+]},
+
+fire:{text:"🔥 Fire started. Warmth stable.",effect:+10,options:[
+{t:"📦 Prepare supplies",n:"gather"},
+{t:"🧭 Plan escape",n:"plan"},
+{t:"🔥 Leave fire unattended",n:"death"}
+]},
+
+gather:{text:"🎒 Collected food, water, blankets.",effect:+10,options:[
+{t:"🚪 Leave prepared",n:"plan"},
+{t:"🔒 Stay too long",n:"starve"},
+{t:"🧭 Plan route",n:"plan"}
+]},
+
+plan:{text:"🧭 Planning survival route.",effect:+5,options:[
+{t:"🚶 Move carefully",n:"stealth"},
+{t:"🚗 Use vehicle",n:"car_check"},
+{t:"🏃 Rush outside",n:"blizzard"}
+]},
+
+// SIGNAL
+no_signal:{text:"📵 No network. Panic rising.",options:[
+{t:"🏃 Go outside",n:"blizzard"},
+{t:"🔒 Stay inside",n:"secure_home"},
+{t:"😵 Panic",n:"death"}
+]},
+
+// OUTSIDE
+blizzard:{text:"🌬 Blizzard hits. Visibility low.",effect:-10,options:[
+{t:"🏃 Run blindly",n:"ice_crack"},
+{t:"🏠 Find shelter",n:"shelter"},
+{t:"👀 Move slowly",n:"stealth"}
+]},
+
+stealth:{text:"👀 Moving carefully in snow.",effect:+5,options:[
+{t:"🚶 Continue",n:"forest"},
+{t:"🏠 Shelter",n:"shelter"},
+{t:"🔙 Go back",n:"secure_home"}
+]},
+
+shelter:{text:"🏠 Found temporary shelter.",effect:+5,options:[
+{t:"🔥 Light fire",n:"fire_out"},
+{t:"😴 Stay too long",n:"freeze_death"},
+{t:"🚶 Move out",n:"forest"}
+]},
+
+fire_out:{text:"🔥 Small fire built.",effect:+10,options:[
+{t:"🚶 Continue",n:"forest"},
+{t:"🔥 Burn too much fuel",n:"death"},
+{t:"🔙 Stay",n:"freeze_death"}
+]},
+
+// FOREST
+forest:{text:"🌲 Snow-covered forest.",options:[
+{t:"🍖 Hunt animals",n:"hunt"},
+{t:"🍓 Search food",n:"food"},
+{t:"🚶 Move ahead",n:"river"}
+]},
+
+hunt:{text:"🐺 Risky hunt.",effect:-10,options:[
+{t:"💪 Successful hunt",n:"food"},
+{t:"🐺 Injured",n:"death"},
+{t:"🏃 Escape",n:"forest"}
+]},
+
+food:{text:"🍖 Food found.",effect:+10,options:[
+{t:"🚶 Continue",n:"river"},
+{t:"📦 Take more",n:"death"},
+{t:"🔙 Return",n:"forest"}
+]},
+
+// RIVER
+river:{text:"🌊 Frozen river ahead.",options:[
+{t:"🚶 Cross carefully",n:"cross"},
+{t:"🏃 Run across",n:"ice_crack"},
+{t:"🔍 Check thickness",n:"check_ice"}
+]},
+
+check_ice:{text:"🔍 Ice seems stable.",effect:+5,options:[
+{t:"🚶 Cross slowly",n:"cross"},
+{t:"🏃 Rush",n:"ice_crack"},
+{t:"🔙 Avoid",n:"mountain"}
+]},
+
+cross:{text:"❄ Safely crossed river.",effect:+10,options:[
+{t:"🚶 Continue",n:"mountain"},
+{t:"😴 Rest",n:"freeze_death"},
+{t:"🔙 Go back",n:"river"}
+]},
+
+ice_crack:{text:"💥 Ice breaks! Freezing water.",effect:-30,options:[
+{t:"🏃 Escape fast",n:"mountain"},
+{t:"😵 Panic",n:"death"},
+{t:"❌ Stay",n:"death"}
+]},
+
+// MOUNTAIN
+mountain:{text:"⛰ Mountain path ahead.",options:[
+{t:"🚶 Climb slowly",n:"climb"},
+{t:"🏃 Rush climb",n:"death"},
+{t:"🏠 Find cave",n:"cave"}
+]},
+
+cave:{text:"🕳 Found cave shelter.",effect:+10,options:[
+{t:"🔥 Start fire",n:"fire_safe"},
+{t:"😴 Sleep long",n:"freeze_death"},
+{t:"🚶 Leave",n:"climb"}
+]},
+
+fire_safe:{text:"🔥 Warm cave.",effect:+10,options:[
+{t:"🚶 Continue",n:"safe_zone"},
+{t:"🔥 Smoke inside",n:"death"},
+{t:"🔙 Stay",n:"freeze_death"}
+]},
+
+climb:{text:"🥶 Tough climb.",effect:-10,options:[
+{t:"🚶 Continue",n:"safe_zone"},
+{t:"😴 Rest",n:"freeze_death"},
+{t:"🔙 Return",n:"mountain"}
+]},
+
+// END
+safe_zone:{text:"🏕 Heated survival camp found.",options:[
+{t:"➡ Enter safely",n:"win"},
+{t:"❌ Ignore",n:"death"},
+{t:"🔙 Return",n:"mountain"}
+]},
+
+// FAIL
+freeze_death:{text:"🥶 You froze to death.",options:[]},
+starve:{text:"🍂 No food left. You starved.",options:[]},
+death:{text:"💀 You died.",options:[]},
+
+// WIN
+win:{text:"🏆 You survived the Ice Age!",options:[]}
+
+};
+
+function render(){
+if(paused)return;
+clearInterval(timer);
+
+if(current==="win"){
+showCelebration();
+return;
+}
+
+time=10;
+startTimer();
+
+let s=scenes[current];
+document.getElementById("scene").innerText=s.text;
+document.getElementById("hp").innerText=hp;
+document.getElementById("pause").innerText=pauseLeft;
+
+if(s.effect){
+hp+=s.effect;
+if(hp<=0){current="death";render();return;}
+}
+
+let c=document.getElementById("choices");
+c.innerHTML="";
+s.options.forEach(o=>{
+let b=document.createElement("button");
+b.innerText=o.t;
+b.onclick=()=>{history.push(current);current=o.n;render();};
+c.appendChild(b);
+});
+}
+
+function showCelebration(){
+document.getElementById("celebration").style.display="flex";
+}
+
+function startTimer(){
+timer=setInterval(()=>{
+time--;
+document.getElementById("time").innerText=time;
+if(time<=0){clearInterval(timer);alert("⏱ Time up!");restartGame();}
+},1000);
+}
+
+function pauseGame(){
+if(pauseLeft>0){
+paused=!paused;
+pauseLeft--;
+if(paused)clearInterval(timer);
+else startTimer();
+render();
+}else alert("No pause left");
+}
+
+function restartGame(){
+document.getElementById("celebration").style.display="none";
+hp=100;pauseLeft=3;history=[];current="start";paused=false;
+render();
+}
+
+function exitGame(){
+document.body.innerHTML="<h1 style='text-align:center'>Game Exited ❌</h1>";
+}
+
+function goBack(){
+if(history.length>0){
+current=history.pop();
+document.getElementById("celebration").style.display="none";
+render();
+}
+}
+
+render();
+</script>
+
+</body>
+</html>
