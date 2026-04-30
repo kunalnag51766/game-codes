@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyclone Survival Game</title>
+
+<style>
+* { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+body {
+margin: 0;
+height: 100vh;
+display: flex;
+justify-content: center;
+align-items: center;
+color: #2d2d2d;
+overflow: hidden;
+}
+
+body::before {
+content: "";
+position: absolute;
+width: 200%;
+height: 200%;
+background: linear-gradient(120deg,#e3f2fd,#fce4ec,#e8f5e9);
+animation: bgMove 18s ease infinite;
+z-index: -1;
+}
+
+@keyframes bgMove {
+0% { transform: translate(0,0); }
+50% { transform: translate(-10%,-10%); }
+100% { transform: translate(0,0); }
+}
+
+.game {
+width: 95%;
+max-width: 650px;
+padding: 20px;
+border-radius: 18px;
+background: rgba(255,255,255,0.75);
+backdrop-filter: blur(12px);
+box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+position: relative;
+z-index: 2;
+}
+
+.topbar {
+display: flex;
+justify-content: space-between;
+font-size: 14px;
+}
+
+h2 { text-align: center; margin: 15px 0; }
+
+.choices button {
+width: 100%;
+padding: 12px;
+margin: 6px 0;
+border: none;
+border-radius: 12px;
+background: #eceff1;
+cursor: pointer;
+transition: 0.2s;
+}
+.choices button:hover { background: #cfd8dc; }
+
+.controls {
+display: flex;
+gap: 8px;
+margin-top: 12px;
+}
+.controls button {
+flex: 1;
+padding: 10px;
+border-radius: 10px;
+border: none;
+background: #dde3e6;
+cursor: pointer;
+}
+
+.celebration {
+position: fixed;
+inset: 0;
+display: none;
+justify-content: center;
+align-items: center;
+flex-direction: column;
+text-align: center;
+background: radial-gradient(circle, #ffffff, #e8f5e9);
+z-index: 5;
+overflow: hidden;
+}
+
+.playAgain {
+margin-top: 20px;
+padding: 12px 20px;
+border: none;
+border-radius: 12px;
+background: #66bb6a;
+color: white;
+font-size: 16px;
+cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game" id="gameUI">
+
+  <div class="topbar">
+    <div>❤️ <span id="hp">100</span></div>
+    <div>⏸ <span id="pause">3</span></div>
+    <div>⏱ <span id="time">10</span>s</div>
+  </div>
+
+  <h2 id="scene"></h2>
+  <div id="choices" class="choices"></div>
+
+  <div class="controls">
+    <button onclick="pauseGame()">⏸</button>
+    <button onclick="restartGame()">🔄</button>
+    <button onclick="exitGame()">❌</button>
+    <button onclick="goBack()">⬅</button>
+  </div>
+
+</div>
+
+<div class="celebration" id="celebration">
+  <h1>🏆 You Survived!</h1>
+  <p>You made smart, realistic decisions 🎉</p>
+  <button class="playAgain" onclick="restartGame()">🔄 Play Again</button>
+</div>
+
+<script>
+
+let hp=100, pauseLeft=3, history=[], current="start", paused=false, time=10, timer;
+
+const scenes = {
+
+// START
+start:{text:"🌪 News: Severe cyclone approaching your city.",options:[
+{t:"🔒 Secure house",n:"secure_home"},
+{t:"🏃 Evacuate early",n:"evacuate"},
+{t:"📞 Call authorities",n:"no_signal"}
+]},
+
+// HOME PREP
+secure_home:{text:"🏠 You secure windows and doors.",effect:+5,options:[
+{t:"📦 Gather supplies",n:"supplies"},
+{t:"⚡ Ignore warnings",n:"death"},
+{t:"📻 Listen updates",n:"radio"}
+]},
+
+supplies:{text:"🎒 Food, water, flashlight ready.",effect:+10,options:[
+{t:"🧭 Plan evacuation",n:"plan"},
+{t:"🏠 Stay inside",n:"flood"},
+{t:"🚪 Leave early",n:"evacuate"}
+]},
+
+radio:{text:"📻 Flood warning issued.",options:[
+{t:"🚪 Leave immediately",n:"evacuate"},
+{t:"🏠 Stay",n:"flood"},
+{t:"😴 Sleep",n:"death"}
+]},
+
+plan:{text:"🧭 Planning safe route.",effect:+5,options:[
+{t:"🚶 Move early",n:"evacuate"},
+{t:"🚗 Take car",n:"car"},
+{t:"⏳ Delay",n:"storm_hits"}
+]},
+
+// EVACUATION
+evacuate:{text:"🚶 You evacuate before storm.",effect:+5,options:[
+{t:"🏫 Go to shelter",n:"shelter"},
+{t:"🚗 Drive highway",n:"car"},
+{t:"🏃 Run randomly",n:"death"}
+]},
+
+// CAR
+car:{text:"🚗 Driving in heavy wind.",options:[
+{t:"⚠ Drive slowly",n:"safe_drive"},
+{t:"⚡ Speed",n:"crash"},
+{t:"🔙 Turn back",n:"storm_hits"}
+]},
+
+safe_drive:{text:"🚗 Safe driving.",effect:+5,options:[
+{t:"🏫 Reach shelter",n:"shelter"},
+{t:"🛑 Stop midway",n:"flood"},
+{t:"🚗 Continue",n:"bridge"}
+]},
+
+crash:{text:"💥 Car lost control.",effect:-30,options:[
+{t:"🚶 Escape",n:"storm_hits"},
+{t:"😵 Stay",n:"death"},
+{t:"📞 Help",n:"no_signal"}
+]},
+
+bridge:{text:"🌉 Weak bridge ahead.",options:[
+{t:"🚫 Avoid bridge",n:"shelter"},
+{t:"🚗 Cross",n:"collapse"},
+{t:"⏳ Wait",n:"storm_hits"}
+]},
+
+collapse:{text:"🌉 Bridge collapsed.",options:[
+{t:"🏊 Swim",n:"death"},
+{t:"🚶 Climb",n:"injury"},
+{t:"😵 Panic",n:"death"}
+]},
+
+injury:{text:"🤕 You are injured.",effect:-20,options:[
+{t:"🚶 Move slowly",n:"shelter"},
+{t:"😴 Stop",n:"death"},
+{t:"📦 First aid",n:"recover"}
+]},
+
+recover:{text:"💊 You treated injury.",effect:+10,options:[
+{t:"🚶 Continue",n:"shelter"},
+{t:"😴 Rest too long",n:"death"},
+{t:"🔙 Back",n:"storm_hits"}
+]},
+
+// STORM IMPACT
+storm_hits:{text:"🌪 Cyclone hits strongly.",effect:-10,options:[
+{t:"🏠 Hide low area",n:"death"},
+{t:"🏢 Move higher ground",n:"high_ground"},
+{t:"🏃 Run outside",n:"death"}
+]},
+
+high_ground:{text:"🏢 You reached higher ground.",effect:+10,options:[
+{t:"🏫 Find shelter",n:"shelter"},
+{t:"⏳ Wait outside",n:"death"},
+{t:"🔙 Move",n:"storm_hits"}
+]},
+
+flood:{text:"🌊 Flood water rising.",effect:-15,options:[
+{t:"🏢 Climb higher",n:"high_ground"},
+{t:"🏊 Swim away",n:"death"},
+{t:"😵 Panic",n:"death"}
+]},
+
+// SHELTER
+shelter:{text:"🏫 Government shelter found.",effect:+15,options:[
+{t:"➡ Enter safely",n:"inside_shelter"},
+{t:"❌ Ignore",n:"death"},
+{t:"🔙 Go back",n:"storm_hits"}
+]},
+
+inside_shelter:{text:"🏫 Safe inside shelter.",effect:+10,options:[
+{t:"🧍 Stay calm",n:"wait_out"},
+{t:"🚪 Go outside",n:"death"},
+{t:"📦 Help others",n:"help"}
+]},
+
+help:{text:"🤝 Helping others.",effect:+5,options:[
+{t:"🧍 Stay",n:"wait_out"},
+{t:"🚪 Leave",n:"death"},
+{t:"🔙 Rest",n:"inside_shelter"}
+]},
+
+wait_out:{text:"⏳ Storm passing...",options:[
+{t:"🧍 Stay patient",n:"win"},
+{t:"🚪 Leave early",n:"death"},
+{t:"😴 Sleep safe",n:"win"}
+]},
+
+// FAIL
+death:{text:"💀 You made unsafe decision.",options:[]},
+no_signal:{text:"📵 Network down.",options:[
+{t:"🏃 Act yourself",n:"evacuate"},
+{t:"🏠 Stay",n:"secure_home"},
+{t:"😵 Panic",n:"death"}
+]},
+
+// WIN
+win:{text:"🏆 You survived the cyclone!",options:[]}
+
+};
+
+function render(){
+if(paused)return;
+clearInterval(timer);
+
+if(current==="win"){
+showCelebration();
+return;
+}
+
+time=10;
+startTimer();
+
+let s=scenes[current];
+document.getElementById("scene").innerText=s.text;
+document.getElementById("hp").innerText=hp;
+document.getElementById("pause").innerText=pauseLeft;
+
+if(s.effect){
+hp+=s.effect;
+if(hp<=0){current="death";render();return;}
+}
+
+let c=document.getElementById("choices");
+c.innerHTML="";
+s.options.forEach(o=>{
+let b=document.createElement("button");
+b.innerText=o.t;
+b.onclick=()=>{history.push(current);current=o.n;render();};
+c.appendChild(b);
+});
+}
+
+function showCelebration(){
+document.getElementById("celebration").style.display="flex";
+}
+
+function startTimer(){
+timer=setInterval(()=>{
+time--;
+document.getElementById("time").innerText=time;
+if(time<=0){clearInterval(timer);alert("⏱ Time up!");restartGame();}
+},1000);
+}
+
+function pauseGame(){
+if(pauseLeft>0){
+paused=!paused;
+pauseLeft--;
+if(paused)clearInterval(timer);
+else startTimer();
+render();
+}else alert("No pause left");
+}
+
+function restartGame(){
+document.getElementById("celebration").style.display="none";
+hp=100;pauseLeft=3;history=[];current="start";paused=false;
+render();
+}
+
+function exitGame(){
+document.body.innerHTML="<h1 style='text-align:center'>Game Exited ❌</h1>";
+}
+
+function goBack(){
+if(history.length>0){
+current=history.pop();
+document.getElementById("celebration").style.display="none";
+render();
+}
+}
+
+render();
+
+</script>
+</body>
+</html>
