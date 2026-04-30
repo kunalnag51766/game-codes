@@ -355,7 +355,16 @@ document.getElementById("celebration").style.display="none";
 render();
 }
 }
+  
+function winGame() {
+  // your existing win logic...
 
+  // Notify hub
+  window.parent.postMessage({
+    type: "WIN",
+    game: "virus"
+  }, "*");
+}
 render();
 </script>
 
