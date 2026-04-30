@@ -330,6 +330,16 @@ function showCelebration(){
 document.getElementById("celebration").style.display="flex";
 }
 
+function winGame() {
+  // your existing win logic...
+
+  // Notify hub
+  window.parent.postMessage({
+    type: "WIN",
+    game: "zombie"
+  }, "*");
+}
+  
 function startTimer(){
 timer=setInterval(()=>{
 time--;
