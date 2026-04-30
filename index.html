@@ -102,18 +102,18 @@ body {
   <div class="grid">
 
     <!-- 🔥 PUT YOUR GAME URLs HERE -->
-    <div class="game-btn" onclick="openGame(GAMES.zombie)">🧟 Zombie Attack</div>
-    <div class="game-btn" onclick="openGame(GAMES.alien)">👽 Alien Invasion</div>
-    <div class="game-btn" onclick="openGame(GAMES.nuclear)">☢️ Nuclear Attack</div>
-    <div class="game-btn" onclick="openGame(GAMES.last)">🧍 Last Human</div>
-    <div class="game-btn" onclick="openGame(GAMES.ai)">🤖 AI Takeover</div>
-    <div class="game-btn" onclick="openGame(GAMES.cyclone)">🌪 Cyclone</div>
-    <div class="game-btn" onclick="openGame(GAMES.ice)">❄️ Ice Age</div>
-    <div class="game-btn" onclick="openGame(GAMES.heat)">🔥 Heat Wave</div>
-    <div class="game-btn" onclick="openGame(GAMES.emp)">📡 EMP Collapse</div>
-    <div class="game-btn" onclick="openGame(GAMES.food)">🍞 Food Crisis</div>
-    <div class="game-btn" onclick="openGame(GAMES.flood)">🌊 Flood</div>
-    <div class="game-btn" onclick="openGame(GAMES.virus)">🦠 Virus Quarantine</div>
+<div class="game-btn" id="zombieBtn" onclick="openGame('zombie')">🧟 Zombie Attack</div>
+<div class="game-btn" id="alienBtn" onclick="openGame('alien')">👽 Alien Invasion</div>
+<div class="game-btn" id="nuclearBtn" onclick="openGame('nuclear')">☢️ Nuclear Attack</div>
+<div class="game-btn" id="lastBtn" onclick="openGame('last')">🧍 Last Human</div>
+<div class="game-btn" id="aiBtn" onclick="openGame('ai')">🤖 AI Takeover</div>
+<div class="game-btn" id="cycloneBtn" onclick="openGame('cyclone')">🌪 Cyclone</div>
+<div class="game-btn" id="iceBtn" onclick="openGame('ice')">❄️ Ice Age</div>
+<div class="game-btn" id="heatBtn" onclick="openGame('heat')">🔥 Heat Wave</div>
+<div class="game-btn" id="empBtn" onclick="openGame('emp')">📡 EMP Collapse</div>
+<div class="game-btn" id="foodBtn" onclick="openGame('food')">🍞 Food Crisis</div>
+<div class="game-btn" id="floodBtn" onclick="openGame('flood')">🌊 Flood</div>
+<div class="game-btn" id="virusBtn" onclick="openGame('virus')">🦠 Virus Quarantine</div>
 
   </div>
 </div>
@@ -140,21 +140,51 @@ const GAMES = {
   flood: "game/flood.html",
   virus: "game/virus.html"
 };
-// ================================================================
+
+// Load progress
+function loadProgress() {
+  const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
+  
+  for (let game in progress) {
+    if (progress[game]) {
+      const btn = document.getElementById(game + "Btn");
+      if (btn && !btn.innerHTML.includes("✔")) {
+        btn.innerHTML += " ✔";
+      }
+    }
+  }
+}
+
+// Save win
+function markWin(game) {
+  const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
+  progress[game] = true;
+  localStorage.setItem("gameWins", JSON.stringify(progress));
+  loadProgress();
+}
+
+// Listen from games
+window.addEventListener("message", (event) => {
+  if (event.data.type === "WIN") {
+    markWin(event.data.game);
+  }
+});
 
 // Show menu after welcome
 setTimeout(() => {
   document.getElementById("menu").style.display = "block";
+  loadProgress();
 }, 2500);
 
 // Open Game
-function openGame(url) {
+function openGame(game) {
   document.getElementById("menu").style.display = "none";
   document.getElementById("gameView").style.display = "block";
-  document.getElementById("gameFrame").src = url;
+  document.getElementById("gameFrame").src = GAMES[game];
+  window.currentGame = game;
 }
 
-// Back to menu
+// Back
 function goBack() {
   document.getElementById("gameView").style.display = "none";
   document.getElementById("menu").style.display = "block";
