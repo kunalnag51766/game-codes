@@ -53,6 +53,7 @@ body {
 }
 
 .game-btn {
+  position: relative;
   background: #1a1a1a;
   padding: 15px;
   border-radius: 12px;
@@ -66,21 +67,16 @@ body {
 }
 
 /* Tick */
-.completed {
-  border: 2px solid #00ff88;
-  position: relative;
-}
-
-.completed::after {
-  content: "✔";
+.tick {
   position: absolute;
-  top: 5px;
+  top: 8px;
   right: 10px;
-  color: #00ff88;
   font-size: 18px;
+  color: #00ff88;
+  display: none;
 }
 
-/* Game */
+/* Game Viewer */
 #gameView {
   display: none;
   height: 100vh;
@@ -108,98 +104,128 @@ body {
 
 <body>
 
+<!-- Welcome -->
 <div id="welcome">Welcome Survivor...</div>
 
+<!-- Menu -->
 <div id="menu">
   <h2 style="margin-bottom:10px;">Choose Your Survival</h2>
+  <div class="grid">
 
-  <div class="grid" id="gameGrid"></div>
+    <div class="game-btn" id="zombieBtn" onclick="openGame('zombie')">
+      🧟 Zombie Attack <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="alienBtn" onclick="openGame('alien')">
+      👽 Alien Invasion <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="nuclearBtn" onclick="openGame('nuclear')">
+      ☢️ Nuclear Attack <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="lastBtn" onclick="openGame('last')">
+      🧍 Last Human <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="aiBtn" onclick="openGame('ai')">
+      🤖 AI Takeover <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="cycloneBtn" onclick="openGame('cyclone')">
+      🌪 Cyclone <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="iceBtn" onclick="openGame('ice')">
+      ❄️ Ice Age <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="heatBtn" onclick="openGame('heat')">
+      🔥 Heat Wave <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="empBtn" onclick="openGame('emp')">
+      📡 EMP Collapse <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="foodBtn" onclick="openGame('food')">
+      🍞 Food Crisis <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="floodBtn" onclick="openGame('flood')">
+      🌊 Flood <span class="tick">✔</span>
+    </div>
+
+    <div class="game-btn" id="virusBtn" onclick="openGame('virus')">
+      🦠 Virus Quarantine <span class="tick">✔</span>
+    </div>
+
+  </div>
 </div>
 
+<!-- Game Viewer -->
 <div id="gameView">
   <div class="back-btn" onclick="goBack()">⬅ Back</div>
   <iframe id="gameFrame"></iframe>
 </div>
 
 <script>
+// GAME URLS
+const GAMES = {
+  zombie: "game/zombie.html",
+  alien: "game/alien.html",
+  nuclear: "game/nuclear.html",
+  last: "game/last.html",
+  ai: "game/ai.html",
+  cyclone: "game/cyclone.html",
+  ice: "game/ice.html",
+  heat: "game/heat.html",
+  emp: "game/emp.html",
+  food: "game/food.html",
+  flood: "game/flood.html",
+  virus: "game/virus.html"
+};
 
-// ================= GAME LIST =================
-const GAMES = [
-  { id: "zombie", name: "🧟 Zombie Attack", url: "game/zombie.html" },
-  { id: "alien", name: "👽 Alien Invasion", url: "game/alien.html" },
-  { id: "nuclear", name: "☢️ Nuclear Attack", url: "game/nuclear.html" },
-  { id: "last", name: "🧍 Last Human", url: "game/last.html" },
-  { id: "ai", name: "🤖 AI Takeover", url: "game/ai.html" },
-  { id: "cyclone", name: "🌪 Cyclone", url: "game/cyclone.html" },
-  { id: "ice", name: "❄️ Ice Age", url: "game/ice.html" },
-  { id: "heat", name: "🔥 Heat Wave", url: "game/heat.html" },
-  { id: "emp", name: "📡 EMP Collapse", url: "game/emp.html" },
-  { id: "food", name: "🍞 Food Crisis", url: "game/food.html" },
-  { id: "flood", name: "🌊 Flood", url: "game/flood.html" },
-  { id: "virus", name: "🦠 Virus Quarantine", url: "game/virus.html" }
-];
+// Track wins (session only)
+let wins = {};
 
-// ================= INIT =================
-const grid = document.getElementById("gameGrid");
+// Show menu
+setTimeout(() => {
+  document.getElementById("menu").style.display = "block";
+}, 2500);
 
-function renderGames() {
-  grid.innerHTML = "";
-
-  const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
-
-  GAMES.forEach(game => {
-    const div = document.createElement("div");
-    div.className = "game-btn";
-    div.innerText = game.name;
-
-    if (progress[game.id]) {
-      div.classList.add("completed");
-    }
-
-    div.onclick = () => openGame(game);
-
-    grid.appendChild(div);
-  });
-}
-
-// ================= GAME OPEN =================
-function openGame(game) {
+// Open game
+function openGame(name) {
+  currentGame = name;
   document.getElementById("menu").style.display = "none";
   document.getElementById("gameView").style.display = "block";
-  document.getElementById("gameFrame").src = game.url;
-
-  window.currentGame = game.id;
+  document.getElementById("gameFrame").src = GAMES[name];
 }
 
-// ================= BACK =================
+// Back
 function goBack() {
   document.getElementById("gameView").style.display = "none";
   document.getElementById("menu").style.display = "block";
   document.getElementById("gameFrame").src = "";
 }
 
-// ================= SAVE WIN =================
-function markWin(gameId) {
-  const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
-  progress[gameId] = true;
-  localStorage.setItem("gameWins", JSON.stringify(progress));
-
-  renderGames();
-}
-
-// ================= LISTENER =================
+// Listen win signal from game
 window.addEventListener("message", (e) => {
-  if (e.data && e.data.type === "WIN") {
-    markWin(e.data.game);
+  if (e.data === "WIN") {
+    wins[currentGame] = true;
+    updateTick(currentGame);
   }
 });
 
-// ================= START =================
-setTimeout(() => {
-  document.getElementById("menu").style.display = "block";
-  renderGames();
-}, 2500);
+// Update tick UI
+function updateTick(game) {
+  const btn = document.getElementById(game + "Btn");
+  if (btn) {
+    btn.querySelector(".tick").style.display = "inline";
+  }
+}
 
+let currentGame = null;
 </script>
 
 </body>
