@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuclear Survival Game</title>
+
+<style>
+* { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #2d2d2d;
+  overflow: hidden;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(120deg,#212121,#424242,#263238);
+  animation: bgMove 18s ease infinite;
+  z-index: -1;
+}
+@keyframes bgMove {
+  0% { transform: translate(0,0); }
+  50% { transform: translate(-10%,-10%); }
+  100% { transform: translate(0,0); }
+}
+
+.game {
+  width: 95%;
+  max-width: 650px;
+  padding: 20px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  position: relative;
+  z-index: 2;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+h2 { text-align: center; margin: 15px 0; }
+
+.choices button {
+  width: 100%;
+  padding: 12px;
+  margin: 6px 0;
+  border: none;
+  border-radius: 12px;
+  background: #eceff1;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.choices button:hover { background: #cfd8dc; }
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.controls button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: #dde3e6;
+  cursor: pointer;
+}
+
+.celebration {
+  position: fixed;
+  inset: 0;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  background: radial-gradient(circle, #ffffff, #c8e6c9);
+  z-index: 5;
+}
+
+.playAgain {
+  margin-top: 20px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  background: #66bb6a;
+  color: white;
+  font-size: 16px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game">
+  <div class="topbar">
+    <div>❤️ <span id="hp">100</span></div>
+    <div>⏸ <span id="pause">3</span></div>
+    <div>⏱ <span id="time">10</span>s</div>
+  </div>
+
+  <h2 id="scene"></h2>
+  <div id="choices" class="choices"></div>
+
+  <div class="controls">
+    <button onclick="pauseGame()">⏸</button>
+    <button onclick="restartGame()">🔄</button>
+    <button onclick="exitGame()">❌</button>
+    <button onclick="goBack()">⬅</button>
+  </div>
+</div>
+
+<div class="celebration" id="celebration">
+  <h1>☢️ You Survived!</h1>
+  <button class="playAgain" onclick="restartGame()">Play Again</button>
+</div>
+
+<script>
+let hp=100, pauseLeft=3, history=[], current="start", paused=false, time=10, timer;
+
+const scenes = {
+
+start:{text:"🚨 Nuclear alert!",options:[
+{t:"🏠 Stay home",n:"home"},
+{t:"🏃 Run outside",n:"street"},
+{t:"📻 Listen radio",n:"radio"}
+]},
+
+home:{text:"🏠 Unsafe shelter.",options:[
+{t:"🏃 Escape",n:"street"},
+{t:"😴 Hide",n:"death"},
+{t:"🎒 Pack",n:"prepare"}
+]},
+
+prepare:{text:"🎒 Supplies ready.",effect:+10,options:[
+{t:"➡ Go",n:"street"},
+{t:"⏳ Delay",n:"death"},
+{t:"🔙 Stay",n:"home"}
+]},
+
+radio:{text:"📻 Find bunker.",options:[
+{t:"➡ Follow",n:"street"},
+{t:"❌ Ignore",n:"home"},
+{t:"📞 Panic",n:"panic"}
+]},
+
+panic:{text:"😨 Panic hurts.",effect:-10,options:[
+{t:"➡ Move",n:"street"},
+{t:"😵 Freeze",n:"death"},
+{t:"🔙 Calm",n:"radio"}
+]},
+
+street:{text:"🏙 Chaos.",options:[
+{t:"🚗 Car",n:"traffic"},
+{t:"🏃 Run",n:"run"},
+{t:"🏢 Building",n:"building"}
+]},
+
+traffic:{text:"🚗 Jam.",effect:-10,options:[
+{t:"🚶 Leave",n:"run"},
+{t:"⏳ Wait",n:"death"},
+{t:"🔙 Back",n:"street"}
+]},
+
+run:{text:"🏃 Escape.",options:[
+{t:"➡ Signs",n:"checkpoint"},
+{t:"☢️ Shortcut",n:"radiation"},
+{t:"🔙 Stop",n:"street"}
+]},
+
+building:{text:"🏢 Shelter.",options:[
+{t:"⬇ Basement",n:"basement"},
+{t:"🔍 Search",n:"loot"},
+{t:"🔙 Leave",n:"street"}
+]},
+
+basement:{text:"⬇ Safer.",effect:+5,options:[
+{t:"➡ Leave",n:"run"},
+{t:"⏳ Stay long",n:"death"},
+{t:"🔙 Up",n:"building"}
+]},
+
+loot:{text:"🔦 Found gear.",effect:+10,options:[
+{t:"➡ Continue",n:"run"},
+{t:"🔙 Stay",n:"building"},
+{t:"⏳ Waste",n:"death"}
+]},
+
+radiation:{text:"☢️ High exposure!",effect:-30,options:[
+{t:"🏃 Escape",n:"run"},
+{t:"😵 Stay",n:"death"},
+{t:"🔙 Back",n:"street"}
+]},
+
+checkpoint:{text:"🪖 Checkpoint.",options:[
+{t:"🆔 Show ID",n:"scan",good:true},
+{t:"🏃 Sneak",n:"death"},
+{t:"🔙 Back",n:"run"}
+]},
+
+scan:{text:"🔍 Scan.",options:[
+{t:"✔ Accept",n:"decontam",good:true},
+{t:"❌ Refuse",n:"death"},
+{t:"🏃 Escape",n:"run"}
+]},
+
+decontam:{text:"🚿 Clean.",options:[
+{t:"➡ Continue",n:"transport",good:true},
+{t:"🔙 Leave",n:"run"},
+{t:"⏳ Delay",n:"death"}
+]},
+
+transport:{text:"🚛 Transport.",options:[
+{t:"➡ Board",n:"bunker",good:true},
+{t:"❌ Refuse",n:"lost"},
+{t:"🔙 Leave",n:"run"}
+]},
+
+bunker:{text:"🚪 Entry.",options:[
+{t:"➡ Enter",n:"final",good:true},
+{t:"❌ Run",n:"lost"},
+{t:"🔙 Back",n:"transport"}
+]},
+
+final:{text:"🔐 Final check.",options:[
+{t:"✔ Comply",n:"win",good:true},
+{t:"❌ Refuse",n:"death"},
+{t:"🏃 Escape",n:"lost"}
+]},
+
+win:{text:"☢️ You survived!",options:[]},
+lost:{text:"☢️ Radiation kills slowly.",options:[]},
+death:{text:"💀 You died.",options:[]}
+};
+
+function shuffle(arr){
+return arr.sort(()=>Math.random()-0.5);
+}
+
+function render(){
+if(paused)return;
+clearInterval(timer);
+
+if(current==="win"){
+document.getElementById("celebration").style.display="flex";
+return;
+}
+
+time=10;
+startTimer();
+
+let s=scenes[current];
+document.getElementById("scene").innerText=s.text;
+document.getElementById("hp").innerText=hp;
+document.getElementById("pause").innerText=pauseLeft;
+
+if(s.effect){
+hp+=s.effect;
+if(hp<=0){current="death";render();return;}
+}
+
+let options = [...s.options];
+
+// 🔥 Shuffle only after checkpoint
+if(["checkpoint","scan","decontam","transport","bunker","final"].includes(current)){
+options = shuffle(options);
+}
+
+let c=document.getElementById("choices");
+c.innerHTML="";
+options.forEach(o=>{
+let b=document.createElement("button");
+b.innerText=o.t;
+b.onclick=()=>{history.push(current);current=o.n;render();};
+c.appendChild(b);
+});
+}
+
+function startTimer(){
+timer=setInterval(()=>{
+time--;
+document.getElementById("time").innerText=time;
+if(time<=0){clearInterval(timer);restartGame();}
+},1000);
+}
+
+function pauseGame(){
+if(pauseLeft>0){
+paused=!paused;
+pauseLeft--;
+if(paused)clearInterval(timer);
+else startTimer();
+render();
+}
+}
+
+function restartGame(){
+document.getElementById("celebration").style.display="none";
+hp=100;pauseLeft=3;history=[];current="start";paused=false;
+render();
+}
+
+function exitGame(){
+document.body.innerHTML="<h1 style='text-align:center'>Game Exited</h1>";
+}
+
+function goBack(){
+if(history.length>0){
+current=history.pop();
+render();
+}
+}
+
+render();
+</script>
+
+</body>
+</html>
