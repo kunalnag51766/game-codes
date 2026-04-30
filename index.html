@@ -19,7 +19,7 @@ body {
   overflow: hidden;
 }
 
-/* Welcome Screen */
+/* Welcome */
 #welcome {
   position: fixed;
   width: 100%;
@@ -65,7 +65,22 @@ body {
   background: #333;
 }
 
-/* Game Viewer */
+/* Tick */
+.completed {
+  border: 2px solid #00ff88;
+  position: relative;
+}
+
+.completed::after {
+  content: "✔";
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  color: #00ff88;
+  font-size: 18px;
+}
+
+/* Game */
 #gameView {
   display: none;
   height: 100vh;
@@ -93,103 +108,98 @@ body {
 
 <body>
 
-<!-- Welcome -->
 <div id="welcome">Welcome Survivor...</div>
 
-<!-- Menu -->
 <div id="menu">
   <h2 style="margin-bottom:10px;">Choose Your Survival</h2>
-  <div class="grid">
 
-    <!-- 🔥 PUT YOUR GAME URLs HERE -->
-<div class="game-btn" id="zombieBtn" onclick="openGame('zombie')">🧟 Zombie Attack</div>
-<div class="game-btn" id="alienBtn" onclick="openGame('alien')">👽 Alien Invasion</div>
-<div class="game-btn" id="nuclearBtn" onclick="openGame('nuclear')">☢️ Nuclear Attack</div>
-<div class="game-btn" id="lastBtn" onclick="openGame('last')">🧍 Last Human</div>
-<div class="game-btn" id="aiBtn" onclick="openGame('ai')">🤖 AI Takeover</div>
-<div class="game-btn" id="cycloneBtn" onclick="openGame('cyclone')">🌪 Cyclone</div>
-<div class="game-btn" id="iceBtn" onclick="openGame('ice')">❄️ Ice Age</div>
-<div class="game-btn" id="heatBtn" onclick="openGame('heat')">🔥 Heat Wave</div>
-<div class="game-btn" id="empBtn" onclick="openGame('emp')">📡 EMP Collapse</div>
-<div class="game-btn" id="foodBtn" onclick="openGame('food')">🍞 Food Crisis</div>
-<div class="game-btn" id="floodBtn" onclick="openGame('flood')">🌊 Flood</div>
-<div class="game-btn" id="virusBtn" onclick="openGame('virus')">🦠 Virus Quarantine</div>
-
-  </div>
+  <div class="grid" id="gameGrid"></div>
 </div>
 
-<!-- Game Viewer -->
 <div id="gameView">
   <div class="back-btn" onclick="goBack()">⬅ Back</div>
   <iframe id="gameFrame"></iframe>
 </div>
 
 <script>
-// ================== 🔥 ADD YOUR GAME LINKS HERE ==================
-const GAMES = {
-  zombie: "game/zombie.html",
-  alien: "game/alien.html",
-  nuclear: "game/nuclear.html",
-  last: "game/last.html",
-  ai: "game/ai.html",
-  cyclone: "game/cyclone.html",
-  ice: "game/ice.html",
-  heat: "game/heat.html",
-  emp: "game/emp.html",
-  food: "game/food.html",
-  flood: "game/flood.html",
-  virus: "game/virus.html"
-};
 
-// Load progress
-function loadProgress() {
+// ================= GAME LIST =================
+const GAMES = [
+  { id: "zombie", name: "🧟 Zombie Attack", url: "game/zombie.html" },
+  { id: "alien", name: "👽 Alien Invasion", url: "game/alien.html" },
+  { id: "nuclear", name: "☢️ Nuclear Attack", url: "game/nuclear.html" },
+  { id: "last", name: "🧍 Last Human", url: "game/last.html" },
+  { id: "ai", name: "🤖 AI Takeover", url: "game/ai.html" },
+  { id: "cyclone", name: "🌪 Cyclone", url: "game/cyclone.html" },
+  { id: "ice", name: "❄️ Ice Age", url: "game/ice.html" },
+  { id: "heat", name: "🔥 Heat Wave", url: "game/heat.html" },
+  { id: "emp", name: "📡 EMP Collapse", url: "game/emp.html" },
+  { id: "food", name: "🍞 Food Crisis", url: "game/food.html" },
+  { id: "flood", name: "🌊 Flood", url: "game/flood.html" },
+  { id: "virus", name: "🦠 Virus Quarantine", url: "game/virus.html" }
+];
+
+// ================= INIT =================
+const grid = document.getElementById("gameGrid");
+
+function renderGames() {
+  grid.innerHTML = "";
+
   const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
-  
-  for (let game in progress) {
-    if (progress[game]) {
-      const btn = document.getElementById(game + "Btn");
-      if (btn && !btn.innerHTML.includes("✔")) {
-        btn.innerHTML += " ✔";
-      }
+
+  GAMES.forEach(game => {
+    const div = document.createElement("div");
+    div.className = "game-btn";
+    div.innerText = game.name;
+
+    if (progress[game.id]) {
+      div.classList.add("completed");
     }
-  }
+
+    div.onclick = () => openGame(game);
+
+    grid.appendChild(div);
+  });
 }
 
-// Save win
-function markWin(game) {
-  const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
-  progress[game] = true;
-  localStorage.setItem("gameWins", JSON.stringify(progress));
-  loadProgress();
-}
-
-// Listen from games
-window.addEventListener("message", (event) => {
-  if (event.data.type === "WIN") {
-    markWin(event.data.game);
-  }
-});
-
-// Show menu after welcome
-setTimeout(() => {
-  document.getElementById("menu").style.display = "block";
-  loadProgress();
-}, 2500);
-
-// Open Game
+// ================= GAME OPEN =================
 function openGame(game) {
   document.getElementById("menu").style.display = "none";
   document.getElementById("gameView").style.display = "block";
-  document.getElementById("gameFrame").src = GAMES[game];
-  window.currentGame = game;
+  document.getElementById("gameFrame").src = game.url;
+
+  window.currentGame = game.id;
 }
 
-// Back
+// ================= BACK =================
 function goBack() {
   document.getElementById("gameView").style.display = "none";
   document.getElementById("menu").style.display = "block";
   document.getElementById("gameFrame").src = "";
 }
+
+// ================= SAVE WIN =================
+function markWin(gameId) {
+  const progress = JSON.parse(localStorage.getItem("gameWins")) || {};
+  progress[gameId] = true;
+  localStorage.setItem("gameWins", JSON.stringify(progress));
+
+  renderGames();
+}
+
+// ================= LISTENER =================
+window.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "WIN") {
+    markWin(e.data.game);
+  }
+});
+
+// ================= START =================
+setTimeout(() => {
+  document.getElementById("menu").style.display = "block";
+  renderGames();
+}, 2500);
+
 </script>
 
 </body>
